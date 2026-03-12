@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GoQueue — Job Processing Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0b; --surface: #111114; --surface2: #18181d;
+    --border: #252530; --border2: #2e2e3a;
+    --text: #e8e8f0; --muted: #6b6b80;
+    --accent: #00ff88; --accent2: #0088ff;
+    --warn: #ffaa00; --danger: #ff4466; --purple: #9966ff;
+    --font-mono: 'Space Mono', monospace; --font-sans: 'DM Sans', sans-serif;
+  }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-sans); min-height: 100vh; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+    background-size: 40px 40px; pointer-events: none; z-index: 0;
+  }
+  #root { position: relative; z-index: 1; }
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 20px 40px; border-bottom: 1px solid var(--border); background: rgba(10,10,11,0.9); backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 100; }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { width: 36px; height: 36px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 14px; color: #000; font-weight: 700; }
+  .logo-text { font-family: var(--font-mono); font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+  .logo-text span { color: var(--accent); }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .status-pill { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--border2); font-family: var(--font-mono); font-size: 11px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 2s infinite; }
+  .dot.offline { background: var(--danger); box-shadow: 0 0 8px var(--danger); animation: none; }
+  @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.85); } }
+  .main { max-width: 1300px; margin: 0 auto; padding: 40px; }
+  .hero { margin-bottom: 48px; }
+  .hero-tag { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border: 1px solid var(--border2); border-radius: 4px; font-family: var(--font-mono); font-size: 11px; color: var(--accent); margin-bottom: 16px; letter-spacing: 0.05em; }
+  .hero h1 { font-family: var(--font-mono); font-size: clamp(28px, 4vw, 48px); font-weight: 700; line-height: 1.1; letter-spacing: -1px; margin-bottom: 12px; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { color: var(--muted); font-size: 15px; max-width: 500px; line-height: 1.6; }
+  .stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 40px; }
+  @media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; position: relative; overflow: hidden; transition: border-color 0.2s, transform 0.2s; }
+  .stat-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+  .stat-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--accent-color, var(--accent)); opacity: 0.7; }
+  .stat-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+  .stat-value { font-family: var(--font-mono); font-size: 28px; font-weight: 700; color: var(--accent-color, var(--accent)); line-height: 1; }
+  .workers-row { display: flex; align-items: center; gap: 8px; margin-bottom: 40px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  .workers-label { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-right: 8px; white-space: nowrap; }
+  .worker-node { width: 28px; height: 28px; border-radius: 6px; background: var(--surface2); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 9px; color: var(--muted); transition: all 0.3s; }
+  .worker-node.active { background: rgba(0,255,136,0.1); border-color: var(--accent); color: var(--accent); box-shadow: 0 0 12px rgba(0,255,136,0.2); animation: workerPulse 1.5s infinite; }
+  @keyframes workerPulse { 0%, 100% { box-shadow: 0 0 12px rgba(0,255,136,0.2); } 50% { box-shadow: 0 0 20px rgba(0,255,136,0.4); } }
+  .two-col { display: grid; grid-template-columns: 380px 1fr; gap: 24px; margin-bottom: 24px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
+  .panel-title { font-family: var(--font-mono); font-size: 13px; font-weight: 700; letter-spacing: 0.03em; display: flex; align-items: center; gap: 8px; }
+  .panel-title-icon { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .panel-body { padding: 24px; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-family: var(--font-mono); font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+  .form-control { width: 100%; padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-family: var(--font-mono); font-size: 13px; outline: none; transition: border-color 0.2s; appearance: none; }
+  .form-control:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,255,136,0.1); }
+  .form-control option { background: var(--surface2); }
+  .payload-area { min-height: 90px; resize: vertical; line-height: 1.5; }
+  .priority-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .btn { width: 100%; padding: 12px; background: var(--accent); color: #000; border: none; border-radius: 8px; font-family: var(--font-mono); font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; letter-spacing: 0.03em; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn:hover { background: #00e07a; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,255,136,0.3); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border2); padding: 6px 14px; width: auto; font-size: 11px; }
+  .btn-secondary:hover { background: var(--surface2); transform: none; box-shadow: none; border-color: var(--accent); color: var(--accent); }
+  .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+  .toast { padding: 12px 18px; border-radius: 8px; font-family: var(--font-mono); font-size: 12px; display: flex; align-items: center; gap: 10px; animation: slideIn 0.3s ease; max-width: 320px; }
+  .toast.success { background: rgba(0,255,136,0.15); border: 1px solid var(--accent); color: var(--accent); }
+  .toast.error { background: rgba(255,68,102,0.15); border: 1px solid var(--danger); color: var(--danger); }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .jobs-table { width: 100%; border-collapse: collapse; }
+  .jobs-table th { font-family: var(--font-mono); font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; text-align: left; padding: 10px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .jobs-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  .jobs-table tr:last-child td { border-bottom: none; }
+  .jobs-table tr:hover td { background: var(--surface2); }
+  .job-id { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+  .job-type { font-family: var(--font-mono); font-size: 12px; color: var(--accent2); }
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 4px; font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; }
+  .badge.completed { background: rgba(0,255,136,0.12); color: var(--accent); border: 1px solid rgba(0,255,136,0.3); }
+  .badge.pending { background: rgba(255,170,0,0.12); color: var(--warn); border: 1px solid rgba(255,170,0,0.3); }
+  .badge.processing { background: rgba(0,136,255,0.12); color: var(--accent2); border: 1px solid rgba(0,136,255,0.3); animation: processingPulse 1s infinite; }
+  .badge.failed { background: rgba(255,68,102,0.12); color: var(--danger); border: 1px solid rgba(255,68,102,0.3); }
+  .badge.dead { background: rgba(153,102,255,0.12); color: var(--purple); border: 1px solid rgba(153,102,255,0.3); }
+  @keyframes processingPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+  .priority-badge { display: inline-block; width: 22px; height: 22px; border-radius: 4px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; text-align: center; line-height: 22px; }
+  .priority-1 { background: rgba(107,107,128,0.2); color: var(--muted); }
+  .priority-2 { background: rgba(255,170,0,0.15); color: var(--warn); }
+  .priority-3 { background: rgba(255,68,102,0.15); color: var(--danger); }
+  .log-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  .log-body { padding: 16px 20px; height: 200px; overflow-y: auto; font-family: var(--font-mono); font-size: 11px; line-height: 1.8; }
+  .log-body::-webkit-scrollbar { width: 4px; }
+  .log-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .log-entry { display: flex; gap: 12px; }
+  .log-time { color: var(--muted); white-space: nowrap; }
+  .log-msg.success { color: var(--accent); }
+  .log-msg.info { color: var(--accent2); }
+  .log-msg.warn { color: var(--warn); }
+  .log-msg.error { color: var(--danger); }
+  .empty-state { text-align: center; padding: 48px 24px; color: var(--muted); font-family: var(--font-mono); font-size: 12px; }
+  .empty-icon { font-size: 32px; margin-bottom: 12px; opacity: 0.4; }
+  .filter-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .filter-tab { padding: 4px 12px; border-radius: 6px; font-family: var(--font-mono); font-size: 11px; cursor: pointer; border: 1px solid transparent; background: transparent; color: var(--muted); transition: all 0.15s; }
+  .filter-tab:hover { color: var(--text); }
+  .filter-tab.active { background: var(--surface2); border-color: var(--border2); color: var(--text); }
+  .table-scroll { overflow-x: auto; }
+  .refresh-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; }
+  .auto-refresh-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .footer { text-align: center; padding: 32px 40px; border-top: 1px solid var(--border); margin-top: 40px; }
+  .footer-text { font-family: var(--font-mono); font-size: 11px; color: var(--muted); line-height: 1.8; }
+  .footer-text a { color: var(--accent); text-decoration: none; }
+  .footer-text a:hover { text-decoration: underline; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-up { animation: fadeUp 0.5s ease forwards; }
+  .fade-up-1 { animation-delay: 0.1s; opacity: 0; }
+  .fade-up-2 { animation-delay: 0.2s; opacity: 0; }
+  .fade-up-3 { animation-delay: 0.3s; opacity: 0; }
+  .fade-up-4 { animation-delay: 0.4s; opacity: 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+const API = "https://go-job-queue.onrender.com";
+const JOB_TYPES = [
+  { value: "send_email", label: "send_email", defaultPayload: '{"to": "user@example.com", "subject": "Hello!"}' },
+  { value: "generate_report", label: "generate_report", defaultPayload: '{"report_type": "monthly_sales"}' },
+  { value: "webhook_delivery", label: "webhook_delivery", defaultPayload: '{"url": "https://example.com/hook"}' },
+];
+function formatTime(iso) { if (!iso) return "—"; return new Date(iso).toLocaleTimeString(); }
+function shortId(id) { return id ? id.slice(0, 8) + "…" : "—"; }
+function App() {
+  const [stats, setStats] = useState(null);
+  const [jobs, setJobs] = useState([]);
+  const [online, setOnline] = useState(null);
+  const [filter, setFilter] = useState("all");
+  const [logs, setLogs] = useState([]);
+  const [toasts, setToasts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [activeWorkers, setActiveWorkers] = useState([false,false,false,false,false]);
+  const logRef = useRef(null);
+  const [jobType, setJobType] = useState("send_email");
+  const [payload, setPayload] = useState(JOB_TYPES[0].defaultPayload);
+  const [priority, setPriority] = useState("2");
+  const [maxAttempts, setMaxAttempts] = useState("3");
+
+  const addLog = useCallback((msg, type = "info") => {
+    const time = new Date().toLocaleTimeString();
+    setLogs(prev => [...prev.slice(-49), { time, msg, type }]);
+  }, []);
+
+  const addToast = useCallback((msg, type = "success") => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, msg, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+  }, []);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/api/v1/stats`);
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data);
+        setOnline(true);
+        const w = data.processing_jobs || 0;
+        setActiveWorkers(Array.from({ length: 5 }, (_, i) => i < w));
+      }
+    } catch { setOnline(false); }
+  }, []);
+
+  const fetchJobs = useCallback(async () => {
+    try {
+      const url = filter === "all" ? `${API}/api/v1/jobs?limit=20` : `${API}/api/v1/jobs?status=${filter}&limit=20`;
+      const res = await fetch(url);
+      if (res.ok) { const data = await res.json(); setJobs(data.jobs || []); }
+    } catch {}
+  }, [filter]);
+
+  useEffect(() => {
+    fetchStats(); fetchJobs();
+    addLog("Connected to GoQueue engine", "success");
+    addLog(`API: ${API}`, "info");
+    const interval = setInterval(() => { fetchStats(); fetchJobs(); }, 3000);
+    return () => clearInterval(interval);
+  }, [fetchStats, fetchJobs]);
+
+  useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [logs]);
+
+  const handleJobTypeChange = (val) => {
+    setJobType(val);
+    const t = JOB_TYPES.find(j => j.value === val);
+    if (t) setPayload(t.defaultPayload);
+  };
+
+  const handleEnqueue = async () => {
+    let parsedPayload;
+    try { parsedPayload = JSON.parse(payload); } catch { addToast("Invalid JSON payload", "error"); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/v1/jobs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: jobType, payload: parsedPayload, priority: parseInt(priority), max_attempts: parseInt(maxAttempts) }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast(`Job enqueued: ${shortId(data.job?.id)}`, "success");
+        addLog(`Enqueued [${jobType}] id=${shortId(data.job?.id)} priority=${priority}`, "success");
+        fetchJobs(); fetchStats();
+      } else {
+        addToast(data.error || "Failed to enqueue", "error");
+        addLog(`Error: ${data.error}`, "error");
+      }
+    } catch (e) { addToast("Network error", "error"); addLog(`Network error: ${e.message}`, "error"); }
+    setLoading(false);
+  };
+
+  const statCards = [
+    { label: "Total", value: stats?.total_jobs ?? "—", color: "var(--text)" },
+    { label: "Pending", value: stats?.pending_jobs ?? "—", color: "var(--warn)" },
+    { label: "Processing", value: stats?.processing_jobs ?? "—", color: "var(--accent2)" },
+    { label: "Completed", value: stats?.completed_jobs ?? "—", color: "var(--accent)" },
+    { label: "Failed", value: stats?.failed_jobs ?? "—", color: "var(--danger)" },
+    { label: "Dead", value: stats?.dead_jobs ?? "—", color: "var(--purple)" },
+  ];
+
+  return (
+    <>
+      <header className="header">
+        <div className="logo">
+          <div className="logo-icon">GQ</div>
+          <div className="logo-text">Go<span>Queue</span></div>
+        </div>
+        <div className="header-right">
+          <div className="status-pill">
+            <div className={`dot ${online === false ? "offline" : ""}`} />
+            {online === null ? "Connecting…" : online ? "Engine Online" : "Offline"}
+          </div>
+          <div className="auto-refresh-label"><div className="refresh-dot" />Live · 3s</div>
+        </div>
+      </header>
+
+      <main className="main">
+        <div className="hero fade-up fade-up-1">
+          <div className="hero-tag">▶ DISTRIBUTED JOB PROCESSING</div>
+          <h1>Background Worker<br /><span>Engine</span></h1>
+          <p>Production-grade job queue built in Go — goroutine worker pool, priority scheduling, exponential backoff retry, and dead letter queue.</p>
+        </div>
+
+        <div className="stats-grid fade-up fade-up-2">
+          {statCards.map(s => (
+            <div className="stat-card" key={s.label} style={{"--accent-color": s.color}}>
+              <div className="stat-label">{s.label}</div>
+              <div className="stat-value">{s.value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="workers-row fade-up fade-up-2">
+          <span className="workers-label">WORKERS</span>
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} className={`worker-node ${activeWorkers[i] ? "active" : ""}`}>W{i}</div>
+          ))}
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted)", marginLeft: 8 }}>
+            {activeWorkers.filter(Boolean).length} / 5 active
+          </span>
+        </div>
+
+        <div className="two-col fade-up fade-up-3">
+          <div className="panel">
+            <div className="panel-header">
+              <div className="panel-title"><div className="panel-title-icon" />Enqueue Job</div>
+            </div>
+            <div className="panel-body">
+              <div className="form-group">
+                <label className="form-label">Job Type</label>
+                <select className="form-control" value={jobType} onChange={e => handleJobTypeChange(e.target.value)}>
+                  {JOB_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Payload (JSON)</label>
+                <textarea className="form-control payload-area" value={payload} onChange={e => setPayload(e.target.value)} spellCheck={false} />
+              </div>
+              <div className="priority-row">
+                <div className="form-group">
+                  <label className="form-label">Priority</label>
+                  <select className="form-control" value={priority} onChange={e => setPriority(e.target.value)}>
+                    <option value="1">1 — Low</option>
+                    <option value="2">2 — Medium</option>
+                    <option value="3">3 — High</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Max Attempts</label>
+                  <select className="form-control" value={maxAttempts} onChange={e => setMaxAttempts(e.target.value)}>
+                    <option value="1">1</option>
+                    <option value="3">3</option>
+                    <option value="5">5</option>
+                  </select>
+                </div>
+              </div>
+              <button className="btn" onClick={handleEnqueue} disabled={loading || !online}>
+                {loading ? <><span className="spinner" /> Enqueueing…</> : "⚡ Enqueue Job"}
+              </button>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-header">
+              <div className="panel-title"><div className="panel-title-icon" style={{ background: "var(--accent2)" }} />Job Queue</div>
+              <div className="filter-tabs">
+                {["all","pending","processing","completed","failed"].map(f => (
+                  <button key={f} className={`filter-tab ${filter === f ? "active" : ""}`} onClick={() => setFilter(f)}>{f}</button>
+                ))}
+              </div>
+            </div>
+            <div className="table-scroll">
+              {jobs && jobs.length > 0 ? (
+                <table className="jobs-table">
+                  <thead><tr><th>ID</th><th>Type</th><th>Status</th><th>P</th><th>Attempts</th><th>Created</th></tr></thead>
+                  <tbody>
+                    {jobs.map(job => (
+                      <tr key={job.id}>
+                        <td><span className="job-id">{shortId(job.id)}</span></td>
+                        <td><span className="job-type">{job.type}</span></td>
+                        <td><span className={`badge ${job.status}`}>{job.status}</span></td>
+                        <td><span className={`priority-badge priority-${job.priority}`}>{job.priority}</span></td>
+                        <td style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted)" }}>{job.attempts}/{job.max_attempts}</td>
+                        <td style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted)" }}>{formatTime(job.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-icon">⬡</div>
+                  <div>No jobs found</div>
+                  <div style={{ marginTop: 4, fontSize: 11 }}>Enqueue a job to get started</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="log-panel fade-up fade-up-4">
+          <div className="panel-header">
+            <div className="panel-title"><div className="panel-title-icon" style={{ background: "var(--warn)" }} />Activity Log</div>
+            <button className="btn btn-secondary" onClick={() => setLogs([])}>Clear</button>
+          </div>
+          <div className="log-body" ref={logRef}>
+            {logs.map((l, i) => (
+              <div key={i} className="log-entry">
+                <span className="log-time">{l.time}</span>
+                <span className={`log-msg ${l.type}`}>{l.msg}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </main>
+
+      <footer className="footer">
+        <div className="footer-text">
+          GoQueue — Built with Go · Gin · PostgreSQL · Docker<br />
+          <a href="https://github.com/debasmita30/go-job-queue" target="_blank">github.com/debasmita30/go-job-queue</a>
+          {" · "}
+          <a href={`${API}/health`} target="_blank">API Health</a>
+        </div>
+      </footer>
+
+      <div className="toast-container">
+        {toasts.map(t => (
+          <div key={t.id} className={`toast ${t.type}`}>{t.type === "success" ? "✓" : "✗"} {t.msg}</div>
+        ))}
+      </div>
+    </>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
