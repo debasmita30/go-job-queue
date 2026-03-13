@@ -182,7 +182,7 @@
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback } = React;
-const API = "https://go-job-queue.onrender.com";
+const API = "https://corsproxy.io/?https://go-job-queue.onrender.com";
 
 const JOB_TYPES = [
   { value: "send_email", label: "📧 Send Email", desc: "Sends an email to a recipient in the background without blocking the app", defaultPayload: '{"to": "user@example.com", "subject": "Welcome to GoQueue!"}' },
