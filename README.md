@@ -18,6 +18,8 @@
 
 🌐 **[Live Demo](https://go-job-queue.vercel.app/)** &nbsp;|&nbsp; ⚙️ **[API Health](https://go-job-queue.onrender.com/health)** &nbsp;|&nbsp; 📊 **[Live Stats](https://go-job-queue.onrender.com/api/v1/stats)** &nbsp;|&nbsp; 💻 **[Source Code](https://github.com/debasmita30/go-job-queue)**
 
+> **Note:** Hosted on Render free tier — if the demo shows "Server Offline", open the [API Health](https://go-job-queue.onrender.com/health) link first and wait 30–60 seconds for it to wake up, then refresh the demo.
+
 </div>
 
 ---
