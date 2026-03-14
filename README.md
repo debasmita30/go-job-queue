@@ -264,13 +264,16 @@ Workers use PostgreSQL's `FOR UPDATE SKIP LOCKED` — a battle-tested pattern th
 
 > **Real-time Queue Stats**
 
-<!-- Add screenshot here -->
+<img width="1902" height="850" alt="Image" src="https://github.com/user-attachments/assets/2658634d-3f1e-4abc-9c9d-437b5338bb47" />
+
 
 &nbsp;
 
+<br><br>
+
 > **Job Submission Form + Demo Scenarios**
 
-<!-- Add screenshot here -->
+
 &nbsp;
 
 > **Jobs Table with Status Badges**
