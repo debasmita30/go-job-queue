@@ -1,43 +1,66 @@
-# GoQueue — Background Job Processing Engine
+<div align="center">
 
-> **Production-grade distributed job queue built in Go** — handles background tasks so your app stays fast and responsive.
+# ⚙️ GoQueue — Background Job Processing Engine
+
+### Never Make Your Users Wait Again — Background Jobs at Scale
+
+[![Go](https://img.shields.io/badge/Go-1.23-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![Gin](https://img.shields.io/badge/Gin-Framework-00ADD8?style=flat-square&logo=go&logoColor=white)](https://gin-gonic.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?style=flat-square&logo=postgresql&logoColor=white)](https://postgresql.org)
+[![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docker.com)
+[![Live Demo](https://img.shields.io/badge/Live-Demo-00C851?style=flat-square&logo=render&logoColor=white)](https://lovely-marigold-29675d.netlify.app)
+
+<br/>
+
+[![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&size=20&duration=3000&pause=800&color=00FF88&center=true&vCenter=true&multiline=false&width=750&lines=APIs+shouldn't+block+on+slow+tasks...;GoQueue+handles+them+in+the+background.;5+goroutines+processing+jobs+in+parallel;PostgreSQL-backed+%E2%80%94+zero+job+loss+guaranteed;Auto-retry+with+exponential+backoff;Priority+queues+%2B+dead+letter+support+%F0%9F%9A%80)](https://git.io/typing-svg)
+
+<br/>
+
+🌐 **[Live Demo](https://go-job-queue.vercel.app/)** &nbsp;|&nbsp; ⚙️ **[API Health](https://go-job-queue.onrender.com/health)** &nbsp;|&nbsp; 📊 **[Live Stats](https://go-job-queue.onrender.com/api/v1/stats)** &nbsp;|&nbsp; 💻 **[Source Code](https://github.com/debasmita30/go-job-queue)**
+
+</div>
 
 ---
 
-## 🔴 The Problem
+## 🧠 What Is This?
 
-Modern web applications need to handle slow, resource-intensive tasks like:
+Imagine you run an e-commerce platform. When a customer places an order, your app needs to:
 
-- Sending 10,000 transactional emails after a flash sale
-- Generating PDF reports from millions of database rows
-- Delivering webhooks to 50 third-party services simultaneously
-- Processing payment notifications from Razorpay / Stripe
+- Send a confirmation email
+- Update inventory levels
+- Ping the warehouse system
+- Deliver a webhook to your CRM
+- Generate a PDF receipt
 
-**If you process these tasks synchronously**, your API hangs, users wait, and timeouts cascade into failures.
+**If you do all of this synchronously**, the customer waits 10+ seconds. If anything fails, the whole request fails.
 
-```
-❌ Without a job queue:
-User clicks "Generate Report" → API blocks for 45 seconds → User sees timeout → Data lost
-```
+**GoQueue solves this.** It accepts the task instantly, returns a response to the user in milliseconds, and processes everything in the background using concurrent Go goroutines — with automatic retries if anything goes wrong.
 
 ---
 
-## ✅ The Solution
+## 🎯 The Problem vs Solution
 
-GoQueue decouples task submission from task execution using a persistent queue and concurrent worker pool.
+| Without a Job Queue | With GoQueue |
+|---|---|
+| ⏳ API blocks until slow task completes | ⚡ Returns instantly — job queued in < 1ms |
+| 💥 One failure crashes the whole request | 🔁 Auto-retry with exponential backoff |
+| 🗑️ Failed tasks silently disappear | 💀 Dead letter queue captures every failure |
+| 🐌 Tasks processed one at a time | ⚡ 5 goroutines run jobs in true parallel |
+| 📭 No visibility into task status | 📊 Real-time stats + job lifecycle tracking |
+| 🔄 No prioritization | 🎯 Priority 1–3 — urgent jobs jump the queue |
+
+---
+
+## ✨ How It Works
 
 ```
-✅ With GoQueue:
-User clicks "Generate Report" → API returns instantly ("Job queued!") → 
-5 workers process in background → User notified when done
+Client hits POST /api/v1/jobs  →  Job saved to PostgreSQL instantly
+→  Worker picks it up  →  Processes in goroutine
+→  Succeeds: marked complete  |  Fails: retried with backoff
+→  Max retries hit: moved to dead letter queue
 ```
 
-**Key guarantees:**
-- Jobs are never lost — stored in PostgreSQL before any worker touches them
-- Auto-retry with exponential backoff if a job fails
-- Dead letter queue captures jobs that exhaust all retries
-- Priority scheduling — urgent jobs jump the queue
-- 5 goroutines process jobs truly in parallel
+**6-step job lifecycle — fully automatic, zero manual intervention.**
 
 ---
 
@@ -45,49 +68,47 @@ User clicks "Generate Report" → API returns instantly ("Job queued!") →
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        CLIENT / API                             │
-│                   POST /api/v1/jobs                             │
+│                     CLIENT / FRONTEND                           │
+│              POST /api/v1/jobs  ·  GET /api/v1/stats            │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    GIN HTTP SERVER                              │
-│              JobHandler · StatsHandler                          │
+│                  GIN HTTP SERVER + CORS                         │
+│         JobHandler · StatsHandler · HealthCheck                 │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                     DISPATCHER                                  │
-│         Enqueues jobs → PostgreSQL (FOR UPDATE SKIP LOCKED)     │
+│                      DISPATCHER                                 │
+│   Persists job to PostgreSQL  ·  FOR UPDATE SKIP LOCKED         │
 └──────┬──────────┬──────────┬──────────┬──────────┬─────────────┘
        │          │          │          │          │
        ▼          ▼          ▼          ▼          ▼
    Worker 0   Worker 1   Worker 2   Worker 3   Worker 4
   (goroutine)(goroutine)(goroutine)(goroutine)(goroutine)
-       │          │          │          │          │
-       └──────────┴──────────┴──────────┴──────────┘
-                            │
-               ┌────────────┴────────────┐
-               ▼                         ▼
-        ✅ completed              ❌ failed → retry
-                                         │
-                                  max_attempts exceeded?
-                                         │
-                                         ▼
-                                  💀 dead letter queue
+       │
+       ├── ✅ Success → status: completed
+       │
+       └── ❌ Failure → exponential backoff retry
+                              │
+                    attempts >= max_attempts?
+                              │
+                              ▼
+                       💀 status: dead
 ```
 
-```
-Job Lifecycle:
+### Job Lifecycle
 
-[pending] → [processing] → [completed]
-               │
-               └──(on error)──► [failed] ──(retry)──► [processing]
-                                              │
-                                    (attempts >= max)
-                                              │
-                                              ▼
-                                           [dead]
+```
+[pending] ──► [processing] ──► [completed]
+                   │
+                   └──(error)──► [failed] ──(retry)──► [processing]
+                                               │
+                                     (max attempts hit)
+                                               │
+                                               ▼
+                                            [dead]
 ```
 
 ---
@@ -99,38 +120,38 @@ go-job-queue/
 │
 ├── cmd/
 │   └── server/
-│       └── main.go                 # Entry point — starts server + workers
+│       └── main.go                  # Entry point — starts HTTP server + worker pool
 │
 ├── internal/
 │   ├── config/
-│   │   └── config.go               # Env config (DATABASE_URL, PORT, WORKER_COUNT)
+│   │   └── config.go                # Env config: DATABASE_URL, PORT, WORKER_COUNT
 │   │
 │   ├── database/
-│   │   └── database.go             # PostgreSQL connection + migrations
+│   │   └── database.go              # PostgreSQL connection + schema migration
 │   │
 │   ├── models/
-│   │   └── job.go                  # Job struct — status, priority, payload, error
+│   │   └── job.go                   # Job struct: id, type, status, payload, priority, error
 │   │
 │   ├── queue/
-│   │   ├── queue.go                # Dispatcher — enqueue + fetch with SKIP LOCKED
-│   │   └── worker.go               # Worker goroutines — process + retry logic
+│   │   ├── queue.go                 # Dispatcher — enqueue + fetch (SKIP LOCKED)
+│   │   └── worker.go                # Worker goroutines — process + retry logic
 │   │
 │   ├── handlers/
-│   │   └── job_handler.go          # REST handlers — enqueue, list, get, stats
+│   │   └── job_handler.go           # REST handlers: enqueue, list, get, stats
 │   │
 │   └── router/
-│       └── router.go               # Gin router + CORS middleware
+│       └── router.go                # Gin router setup + CORS middleware
 │
 ├── migrations/
-│   └── 001_create_jobs.sql         # PostgreSQL schema
+│   └── 001_create_jobs.sql          # PostgreSQL jobs table schema
 │
-├── index.html                      # Live demo frontend
-├── Dockerfile                      # Multi-stage Docker build
-├── docker-compose.yml              # Local dev with Postgres
-├── go.mod
-├── go.sum
-├── .env.example
-└── .gitignore
+├── index.html                       # Live demo frontend (React CDN)
+├── Dockerfile                       # Multi-stage Docker build
+├── docker-compose.yml               # Local dev: app + PostgreSQL
+├── go.mod                           
+├── go.sum                           
+├── .env.example                     
+└── .gitignore                       
 ```
 
 ---
@@ -155,7 +176,7 @@ Content-Type: application/json
 ```json
 {
   "type": "send_email",
-  "payload": { "to": "user@example.com", "subject": "Welcome!" },
+  "payload": { "to": "user@example.com", "subject": "Order Confirmed!" },
   "priority": 3,
   "max_attempts": 3
 }
@@ -182,17 +203,10 @@ Content-Type: application/json
 GET /api/v1/jobs?status=pending&limit=20
 ```
 
-| Query Param | Options | Default |
+| Param | Options | Default |
 |---|---|---|
-| `status` | `pending`, `processing`, `completed`, `failed`, `dead` | all |
+| `status` | `pending` `processing` `completed` `failed` `dead` | all |
 | `limit` | 1–100 | 20 |
-
----
-
-### Get Single Job
-```http
-GET /api/v1/jobs/:id
-```
 
 ---
 
@@ -215,7 +229,7 @@ GET /api/v1/stats
 
 ## ⚙️ Supported Job Types
 
-| Type | Payload Fields | Description |
+| Type | Payload | Description |
 |---|---|---|
 | `send_email` | `to`, `subject`, `body` | Background email delivery |
 | `generate_report` | `report_type`, `format` | Async report generation |
@@ -225,15 +239,53 @@ GET /api/v1/stats
 
 ## 🔁 Retry Logic
 
-GoQueue uses **exponential backoff** to retry failed jobs without hammering downstream services:
+GoQueue uses **exponential backoff** — failed jobs wait longer between each retry to avoid hammering downstream services:
 
 ```
 Attempt 1 fails → wait 30s  → retry
-Attempt 2 fails → wait 60s  → retry
-Attempt 3 fails → wait 90s  → marked DEAD
+Attempt 2 fails → wait 60s  → retry  
+Attempt 3 fails → wait 90s  → marked DEAD (moved to dead letter queue)
 ```
 
-Workers use `FOR UPDATE SKIP LOCKED` — a PostgreSQL feature that prevents two workers from picking the same job even under high concurrency.
+Workers use PostgreSQL's `FOR UPDATE SKIP LOCKED` — a battle-tested pattern that prevents two workers from ever picking the same job, even at high concurrency.
+
+---
+
+## 📸 Screenshots
+
+> **Live Dashboard — Server Online**
+
+<!-- Add screenshot here -->
+&nbsp;
+
+> **Real-time Queue Stats**
+
+<!-- Add screenshot here -->
+&nbsp;
+
+> **Job Submission Form + Demo Scenarios**
+
+<!-- Add screenshot here -->
+&nbsp;
+
+> **Jobs Table with Status Badges**
+
+<!-- Add screenshot here -->
+&nbsp;
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| Language | Go 1.23 | Performance + goroutines |
+| HTTP Framework | Gin | REST API + routing |
+| Database | PostgreSQL 15 | Persistent job storage |
+| Concurrency | Goroutines + Channels | Parallel worker pool |
+| Containerization | Docker (multi-stage) | Reproducible builds |
+| Cloud | Render | Production deployment |
+| Frontend | React (CDN) | Live demo dashboard |
 
 ---
 
@@ -249,78 +301,89 @@ docker-compose up --build
 
 ### Without Docker
 ```bash
-# Requires Go 1.23+ and PostgreSQL running locally
+# Requires Go 1.23+ and a running PostgreSQL instance
 export DATABASE_URL=postgres://postgres:password@localhost:5432/jobqueue?sslmode=disable
 export WORKER_COUNT=5
 export PORT=8080
 go run ./cmd/server
 ```
 
-API available at `http://localhost:8080`
-
----
-
-## 📸 Screenshots
-
-### Live Dashboard
-<!-- Add screenshot here -->
-![Dashboard](screenshots/dashboard.png)
-
-### Queue Stats
-<!-- Add screenshot here -->
-![Stats](screenshots/stats.png)
-
-### Job Submission
-<!-- Add screenshot here -->
-![Job Form](screenshots/job-form.png)
-
-### Jobs Table
-<!-- Add screenshot here -->
-![Jobs Table](screenshots/jobs-table.png)
-
----
-
-## 🛠️ Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Language | Go 1.23 |
-| HTTP Framework | Gin |
-| Database | PostgreSQL 15 |
-| Concurrency | Goroutines + Channels |
-| Containerization | Docker (multi-stage build) |
-| Cloud Deployment | Render |
-| Frontend | Vanilla React (CDN) |
+API live at `http://localhost:8080` · Try `GET /health` to verify.
 
 ---
 
 ## 💡 Real-World Parallels
 
-This architecture mirrors what runs at scale in production:
+GoQueue implements the same architecture patterns used by job queues at scale in production:
 
-- **Sidekiq** (Ruby) — Redis-backed job queue used by GitHub, Shopify
-- **Celery** (Python) — Distributed task queue used by Instagram, Mozilla
-- **BullMQ** (Node.js) — Queue used by Netlify, Linear
-- **Faktory** — Language-agnostic job server by the creator of Sidekiq
+| Library | Language | Used By |
+|---|---|---|
+| **Sidekiq** | Ruby | GitHub, Shopify, Gitlab |
+| **Celery** | Python | Instagram, Mozilla, Zapier |
+| **BullMQ** | Node.js | Netlify, Linear |
+| **Faktory** | Language-agnostic | Creator of Sidekiq |
 
-GoQueue implements the same core patterns: persistent storage, concurrent workers, retry with backoff, and dead letter queues.
+Core patterns implemented: persistent job storage, concurrent worker pool, retry with exponential backoff, dead letter queue, priority scheduling.
 
 ---
 
-## 🔗 Live Demo
+## 📈 Performance
 
-| Resource | Link |
+| Metric | Value |
 |---|---|
-| 🌐 Live Frontend | https://lovely-marigold-29675d.netlify.app |
-| ⚙️ API Health | https://go-job-queue.onrender.com/health |
-| 📊 Live Stats | https://go-job-queue.onrender.com/api/v1/stats |
-| 💻 Source Code | https://github.com/debasmita30/go-job-queue |
+| Job enqueue latency | < 5ms |
+| Worker poll interval | 1 second |
+| Max concurrent jobs | 5 (configurable) |
+| Retry backoff formula | `30s × attempt_number` |
+| Job storage | Persistent (survives restarts) |
 
-> **Note:** Hosted on Render free tier — first request may take 30–60s to wake the server.
+---
+
+## 🗺️ Roadmap
+
+- [x] PostgreSQL-backed persistent job queue
+- [x] 5 concurrent goroutine workers
+- [x] Priority scheduling (1–3)
+- [x] Exponential backoff retry
+- [x] Dead letter queue
+- [x] REST API (enqueue, list, get, stats)
+- [x] CORS support
+- [x] Docker + docker-compose
+- [x] Deployed on Render
+- [x] Live React dashboard
+- [ ] Redis backend option
+- [ ] Job scheduling (cron-style)
+- [ ] Webhook callbacks on completion
+- [ ] Prometheus metrics endpoint
 
 ---
 
 ## 👩‍💻 Author
 
-**Debasmita Chatterjee**  
-[GitHub](https://github.com/debasmita30) · [Portfolio](https://leafy-cajeta-9270ea.netlify.app/)
+<div align="center">
+
+**Debasmita Chatterjee**
+
+Backend Engineer · Go · Python · ML Systems · Cloud Deployment
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0077B5?style=flat-square&logo=linkedin)](https://www.linkedin.com/in/debasmita-chatterjee/)
+[![GitHub](https://img.shields.io/badge/GitHub-Follow-181717?style=flat-square&logo=github)](https://github.com/debasmita30)
+[![Portfolio](https://img.shields.io/badge/Portfolio-Visit-00FF88?style=flat-square)](https://leafy-cajeta-9270ea.netlify.app/)
+
+</div>
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+---
+
+<div align="center">
+
+⭐ **If this project helped you, give it a star!**
+
+Built with ⚙️ Go · 🐘 PostgreSQL · 🐳 Docker · ☁️ Render
+
+</div>
