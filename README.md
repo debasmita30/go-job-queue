@@ -273,7 +273,10 @@ Workers use PostgreSQL's `FOR UPDATE SKIP LOCKED` — a battle-tested pattern th
 
 > **Job Submission Form + Demo Scenarios**
 
+<img width="1901" height="851" alt="Image" src="https://github.com/user-attachments/assets/f12c2ffb-a98d-43b7-a7ac-001c15c373aa" />
+<br><br>
 
+<img width="1911" height="856" alt="Image" src="https://github.com/user-attachments/assets/96d530fd-1e76-4b13-b069-dff8d6e85ee2" />
 
 
 
