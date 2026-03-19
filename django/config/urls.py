@@ -5,7 +5,7 @@ from api.views import JobViewSet, StatsViewSet
 
 router = DefaultRouter()
 router.register(r'jobs', JobViewSet, basename='job')
-router.register(r'stats', StatsViewSet, basename='stats')  # ← ADD THIS
+router.register(r'stats', StatsViewSet, basename='stats')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
