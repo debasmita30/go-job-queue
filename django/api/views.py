@@ -1,28 +1,32 @@
-from rest_framework import viewsets, status
+from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from .models import Job
-from .serializers import JobSerializer
-from .tasks import process_job
 
-class JobViewSet(viewsets.ModelViewSet):
-    queryset = Job.objects.all()
-    serializer_class = JobSerializer
+class StatsViewSet(ViewSet):
+    """
+    API endpoint for queue statistics
+    """
     
-    def create(self, request):
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            job = serializer.save()
-            # Queue async task
-            process_job.delay(job.id)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    @action(detail=True, methods=['get'])
-    def status(self, request, pk=None):
-        job = self.get_object()
+    @action(detail=False, methods=['get'])
+    def list(self, request):
+        """
+        Get overall queue statistics
+        GET /api/stats/
+        """
+        total_jobs = Job.objects.count()
+        pending_jobs = Job.objects.filter(status='pending').count()
+        processing_jobs = Job.objects.filter(status='processing').count()
+        completed_jobs = Job.objects.filter(status='completed').count()
+        failed_jobs = Job.objects.filter(status='failed').count()
+        dead_jobs = Job.objects.filter(status='dead').count()
+        
         return Response({
-            'id': job.id,
-            'status': job.status,
-            'result': job.result
+            'total_jobs': total_jobs,
+            'pending_jobs': pending_jobs,
+            'processing_jobs': processing_jobs,
+            'completed_jobs': completed_jobs,
+            'failed_jobs': failed_jobs,
+            'dead_jobs': dead_jobs,
         })
+        
