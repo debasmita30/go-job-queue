@@ -75,3 +75,4 @@ class StatsViewSet(viewsets.ViewSet):
             'failed_jobs': failed_jobs,
             'dead_jobs': dead_jobs,
         })
+```
