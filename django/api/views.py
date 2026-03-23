@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from .models import Job
 from .serializers import JobSerializer
- 
+
 class JobViewSet(viewsets.ModelViewSet):
     queryset = Job.objects.all()
     serializer_class = JobSerializer
@@ -26,7 +26,7 @@ class JobViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_201_CREATED
         )
- 
+
 class StatsViewSet(viewsets.ViewSet):
     
     def list(self, request):
